@@ -36,228 +36,118 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="VeriSim — Verilog simulator and synthesizer in your browser. Icarus Verilog and Yosys compiled to WebAssembly: edit, simulate, view waveforms, and see gate-level or RTL schematics. No install, no server.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6ef3'/%3E%3Cpath d='M8 7l8 18L24 7h-4.4L16 17.4 12.4 7z' fill='%23fff'/%3E%3C/svg%3E">
-<title>VeriSim — Verilog in your browser</title>
+<meta name="description" content="VeriLab — Verilog simulator and synthesizer in your browser. Icarus Verilog and Yosys compiled to WebAssembly: edit, simulate, view waveforms, and see gate-level or RTL schematics. No install, no server.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=vl3">
+<title>VeriLab — Verilog Simulator</title>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/verilog/verilog.min.js"></script>
+<link rel="stylesheet" href="vendor/codemirror/codemirror.css">
+<script src="vendor/codemirror/codemirror.js"></script>
+<script src="vendor/codemirror/verilog.js"></script>
 <!-- schematic renderer: self-hosted bundles (download from https://nturley.github.io/netlistsvg/ — elk MUST load before netlistsvg) -->
 <script src="elk.bundled.js"></script>
 <script src="netlistsvg.bundle.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-
-<style>
-  :root{
-    --bg:#eef0f3; --panel:#ffffff; --edge:#d4d9e0;
-    --ink:#15191f; --ink-dim:#677083; --ink-faint:#aab2bd;
-    --accent:#1d6fe0; --wave:#15191f; --bad:#d23730; --warn:#b26a00;
-    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
-    --sans:'IBM Plex Sans',system-ui,sans-serif;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden}
-
-  header{display:flex;align-items:center;gap:18px;padding:9px 18px;border-bottom:1px solid var(--edge);background:#fafbfc}
-  .brand{display:flex;align-items:baseline;gap:10px}
-  .brand b{font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:.5px;color:#11151b}
-  .brand b span{color:var(--accent)}
-  .brand small{color:var(--ink-dim);font-size:12px}
-  .brand .ver{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--edge);border-radius:5px;padding:1px 6px}
-  header .spacer{flex:1}
-  select,button{font-family:var(--mono);font-size:13px}
-  select{background:#fff;color:var(--ink);border:1px solid var(--edge);border-radius:6px;padding:6px 8px}
-  #run{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;font-weight:600;
-    border:none;border-radius:6px;padding:8px 18px;cursor:pointer;box-shadow:0 1px 2px rgba(20,40,80,.2);transition:transform .06s,filter .15s}
-  #run:hover{filter:brightness(1.06)} #run:active{transform:translateY(1px)} #run:disabled{opacity:.5;cursor:default}
-  #run .tri{font-size:11px}
-
-  #urlBtn{background:#fff;color:var(--ink-dim);border:1px solid var(--edge);border-radius:6px;padding:7px 12px;cursor:pointer}
-  #urlBtn:hover{border-color:var(--accent);color:var(--accent)}
-
-  /* ---- load-from-URL modal ---- */
-  .modal-bg{position:fixed;inset:0;background:rgba(18,26,40,.45);display:none;align-items:center;justify-content:center;z-index:50}
-  .modal-bg.on{display:flex}
-  .modal{background:var(--panel);border:1px solid var(--edge);border-radius:10px;width:min(580px,92vw);
-    box-shadow:0 14px 44px rgba(10,20,40,.28);padding:18px 20px;font-family:var(--sans)}
-  .modal h3{margin:0 0 4px;font-family:var(--mono);font-size:15px;color:var(--ink)}
-  .modal p{margin:0;font-size:12.5px;color:var(--ink-dim);line-height:1.5}
-  .modal label{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin:13px 0 4px}
-  .modal input[type=text]{width:100%;font-family:var(--mono);font-size:12.5px;padding:8px 10px;
-    border:1px solid var(--edge);border-radius:6px;background:#fff;color:var(--ink)}
-  .modal input[type=text]:focus{outline:none;border-color:var(--accent)}
-  .modal .hint{margin-top:13px;font-size:11.5px;color:var(--ink-faint);line-height:1.6}
-  .modal .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  .modal .chip{font-family:var(--mono);font-size:11px;background:#f3f5f8;border:1px solid var(--edge);
-    border-radius:5px;color:var(--ink-dim);padding:3px 9px;cursor:pointer}
-  .modal .chip:hover{border-color:var(--accent);color:var(--accent)}
-  .modal .err{min-height:16px;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--bad)}
-  .modal .row{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:6px}
-  .modal .row .grp{display:flex;gap:8px}
-  .modal .row button{font-family:var(--mono);font-size:13px;border-radius:6px;padding:8px 16px;cursor:pointer;font-weight:600}
-  .modal .copied{font-family:var(--mono);font-size:11px;color:var(--accent)}
-  .modal .ghost{background:#fff;color:var(--ink-dim);border:1px solid var(--edge)}
-  .modal .ghost:hover{border-color:var(--accent);color:var(--accent)}
-  .modal .primary{background:var(--accent);color:#fff;border:none}
-  .modal .primary:hover{filter:brightness(1.06)} .modal .primary:disabled{opacity:.55;cursor:default}
-
-  main{flex:1;display:flex;min-height:0}
-  #vsplit{flex:none;height:7px;background:var(--edge);cursor:row-resize;position:relative}
-  #vsplit::after{content:"";position:absolute;left:50%;top:2px;width:38px;height:3px;margin-left:-19px;border-radius:2px;background:#b8bfc9}
-  #vsplit:hover{background:var(--accent)} #vsplit:hover::after{background:#fff}
-  .pane{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--edge)}
-  .pane:last-child{border-right:none}
-  .pane h2{margin:0;padding:6px 12px;font-family:var(--mono);font-weight:500;font-size:12.5px;letter-spacing:.3px;
-    text-transform:none;color:var(--ink-dim);border-bottom:1px solid var(--edge);background:#f3f5f8;display:flex;align-items:center;gap:8px}
-  .pane h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
-  .pane h2 .grow{flex:1}
-  .pane h2 .lnk{background:#fff;border:1px solid var(--edge);border-radius:5px;color:var(--ink-dim);
-    font-family:var(--mono);font-size:11px;padding:2px 9px;cursor:pointer}
-  .pane h2 .lnk:hover{border-color:var(--accent);color:var(--accent)}
-  .pane .editor{flex:1;min-height:0;position:relative}
-  .pane h2 #tabs{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;min-width:0;margin:-6px 0 -7px -12px;padding:4px 0 0 8px;align-self:stretch}
-  .pane h2 #tabs::-webkit-scrollbar{display:none}   /* strip stays scrollable with many tabs, but no visible bar (v1.35) */
-  .ftab{display:flex;align-items:center;gap:6px;background:#e7eaef;border:1px solid var(--edge);border-bottom:none;border-radius:6px 6px 0 0;
-    padding:4px 10px;font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);cursor:pointer;white-space:nowrap;user-select:none}
-  .ftab.active{background:#fff;color:var(--ink);font-weight:600;border-color:var(--accent);border-bottom:1px solid #fff;margin-bottom:-1px}
-  .ftab .x{color:var(--ink-faint);font-size:13px;line-height:1;padding:0 1px;border-radius:3px}
-  .ftab .x:hover{color:#fff;background:var(--bad)}
-  .ftab.add{background:transparent;border:1px dashed var(--edge);color:var(--accent);font-weight:600;padding:3px 9px}
-  .ftab.add:hover{border-color:var(--accent)}
-  textarea{width:100%;height:100%;border:none;resize:none;outline:none;background:#fff;color:var(--ink);
-    padding:12px 14px;font-family:var(--mono);font-size:13.5px;line-height:1.55;tab-size:2}
-  .CodeMirror{height:100%!important;background:#fff;color:var(--ink);font-family:var(--mono);font-size:13.5px;line-height:1.55}
-  .CodeMirror-gutters{background:#f7f8fa;border-right:1px solid var(--edge)}
-  .CodeMirror-linenumber{color:var(--ink-faint)}
-  .cm-s-default .cm-keyword{color:#0a52c4;font-weight:600}
-  .cm-s-default .cm-number{color:#b26a00}
-  .cm-s-default .cm-comment{color:#8a95a3;font-style:italic}
-  .cm-s-default .cm-string{color:#137a3e}
-  .cm-s-default .cm-meta{color:#8a3fb0}
-  .cm-s-default .cm-variable-2,.cm-s-default .cm-def{color:#15191f}
-
-  #bottom{height:43%;display:flex;flex-direction:column;border-top:1px solid var(--edge);background:#fff}
-  .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--edge);background:#f7f8fa}
-  .tab{font-family:var(--mono);font-size:12px;color:var(--ink-dim);padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;user-select:none}
-  .tab.active{color:var(--ink);border-bottom-color:var(--accent)}
-  .tabs .spacer{flex:1}
-  .tabs .stat{font-family:var(--mono);font-size:12px;color:var(--ink-dim);padding-right:6px}
-  .tabs .stat b{color:#137a3e;font-weight:600}
-  .tabs a.act{font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;padding:0 10px;cursor:pointer}
-  .tabs a.act:hover{text-decoration:underline}
-  .view{flex:1;min-height:0;overflow:auto;display:none}
-  .view.active{display:block}
-  #console{font-family:var(--mono);font-size:13px;line-height:1.5;padding:10px 14px;white-space:pre-wrap;margin:0;color:var(--ink)}
-  #console .l-err{color:var(--bad)} #console .l-warn{color:var(--warn)} #console .l-sys{color:var(--ink-dim)}
-
-  /* waveform view: signal list + zoomable plot */
-  #wave{padding:0;overflow:hidden}
-  #synth.active{display:flex;flex-direction:column;overflow:hidden}
-  #stools{display:flex;align-items:center;gap:12px;padding:7px 12px;border-bottom:1px solid var(--edge);background:#f3f5f8;flex:none}
-  #stools .seg{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden}
-  #stools .seg button{border:none;background:#fff;color:var(--ink-dim);font-family:var(--mono);font-size:11px;padding:4px 12px;cursor:pointer}
-  #stools .seg button.on{background:var(--accent);color:#fff}
-  #stools #synRun{border:1px solid var(--edge);background:#fff;color:var(--ink-dim);font-family:var(--mono);font-size:11px;border-radius:6px;padding:4px 12px;cursor:pointer}
-  #stools #synRun:hover{border-color:var(--accent);color:var(--accent)}
-  #synarea{flex:1;min-height:0;overflow:hidden;padding:0;background:#fff;position:relative;cursor:grab}
-  #synarea svg{display:block;user-select:none}
-  #synarea .empty{padding:12px}
-  #wave.active{display:flex}
-  #siglist{width:204px;flex:none;overflow:auto;background:#fafbfc;display:none;font-family:var(--mono);font-size:12px}
-  #hsplit{flex:none;width:7px;background:var(--edge);cursor:col-resize;position:relative;display:none}
-  #hsplit::after{content:"";position:absolute;top:50%;left:2px;height:38px;width:3px;margin-top:-19px;border-radius:2px;background:#b8bfc9}
-  #hsplit:hover{background:var(--accent)} #hsplit:hover::after{background:#fff}
-  #siglist .sl-head{display:block;padding:6px 10px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    border-bottom:1px solid var(--edge);position:sticky;top:0;background:#fafbfc;letter-spacing:.5px}
-  #siglist label{display:flex;gap:7px;align-items:center;padding:3px 10px;cursor:pointer;white-space:nowrap;color:var(--ink)}
-  #siglist label:hover{background:#f0f2f5}
-  #wavecol{flex:1;display:flex;flex-direction:column;min-width:0}
-  #wtools{display:flex;align-items:center;gap:14px;padding:5px 10px;border-bottom:1px solid var(--edge);background:#f7f8fa}
-  #wtools button{background:#fff;border:1px solid var(--edge);border-radius:5px;padding:4px 12px;cursor:pointer;color:var(--ink)}
-  #wtools button:hover{border-color:var(--accent);color:var(--accent)}
-  #wtools .hint{color:var(--ink-dim);font-family:var(--mono);font-size:11px}
-  #wtools #wmarker{color:#15191f;font-family:var(--mono);font-size:12px;font-weight:600}
-  #wavearea{flex:1;overflow:auto;position:relative;display:flex;align-items:flex-start}
-  #wnames{flex:none;font-family:var(--mono);font-size:12px;color:#15191f;background:#fff;white-space:nowrap;overflow:hidden}
-  #wnames div{height:40px;line-height:40px;padding:0 8px;display:flex;gap:6px}
-  #wnames div .nm{flex:1 1 auto;min-width:0;text-overflow:ellipsis;overflow:hidden;direction:rtl;text-align:left}
-  #wnames div .nm span{direction:ltr;unicode-bidi:bidi-override}
-  #wnames div .val{flex:none;font-weight:600}                   /* value at the marker, GTKWave style "clk =1" (v1.39) */
-  #nsplit{flex:none;width:7px;align-self:stretch;background:var(--edge);cursor:col-resize;position:relative}
-  #nsplit::after{content:"";position:absolute;top:50%;left:2px;height:38px;width:3px;margin-top:-19px;border-radius:2px;background:#b8bfc9}
-  #nsplit:hover{background:var(--accent)} #nsplit:hover::after{background:#fff}
-  #wavearea .empty{color:var(--ink-dim);font-family:var(--mono);font-size:13px;padding:16px}
-  #wavearea svg{display:block;user-select:none}
-  #wavearea svg text{font-family:var(--mono)}
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<header>
-  <div class="brand"><b>Veri<span>Sim</span></b><span class="ver" title="2026-10-31">v1.40</span><small>Verilog in your browser &middot; Icarus &rarr; WASM</small></div>
-  <div class="spacer"></div>
-  <select id="examples" title="Load an example or start blank">
-    <option value="" selected>Examples&hellip;</option>
-    <option value="gate">Gate-Level &mdash; Half Adder</option>
-    <option value="dataflow">Dataflow &mdash; Half Adder</option>
-    <option value="behavioral">Behavioral &mdash; Half Adder</option>
-    <option value="shiftreg">Shift Register &mdash; 4-bit (sequential)</option>
-    <option value="counter2">Counter &mdash; 2-bit (sequential)</option>
-    <option value="include">Multiple Files &mdash; Full Adder (`include "halfadder.v")</option>
-  </select>
-  <button id="urlBtn" title="Load design.v and testbench.v from URLs">URL&hellip;</button>
-  <select id="gen" title="Language generation">
-    <option value="2005" selected>Verilog-2005</option>
-    <option value="2009">Verilog/SV-2009</option>
-    <option value="2012">SystemVerilog-2012</option>
-  </select>
-  <button id="run"><span class="tri">&#9658;</span> Run</button>
+<header class="app-header">
+  <div class="brand" aria-label="VeriLab"><img src="assets/verilab-symbol.svg" alt="" width="34" height="34"><span>VeriLab</span></div>
+  <span class="header-divider" aria-hidden="true"></span><span class="workspace-identity">Verilog workspace</span>
+  <p class="tagline">Build circuits. See signals. Understand logic.</p>
+  <nav aria-label="Help"><button class="text-button" id="guideBtn">Quick guide <span aria-hidden="true">?</span></button></nav>
 </header>
-
-<main>
-  <section class="pane"><h2><span class="dot"></span><div id="tabs"></div><span class="grow"></span>
-      <button class="lnk" id="fClear" title="Clear the active file">clear</button><button class="lnk" id="fOpen" title="Load a local file into the active tab">open</button><button class="lnk" id="fSave" title="Download the active file">save</button><button class="lnk" id="fZip" title="Download all tabs + run.sh/run.bat as a zip project">zip</button></h2>
-    <div class="editor"><textarea id="src" spellcheck="false"></textarea></div></section>
+<div class="workspace-toolbar" aria-label="Workspace controls">
+  <div class="tool-group project-tools">
+    <select id="examples" aria-label="Load an example" title="Loading an example replaces the current files">
+      <option value="" selected>Examples</option>
+      <option value="and">AND gate — start here</option>
+      <option value="gate">Gate-Level — Half Adder</option>
+      <option value="dataflow">Dataflow — Half Adder</option>
+      <option value="behavioral">Behavioral — Half Adder</option>
+      <option value="shiftreg">Shift Register — 4-bit (sequential)</option>
+      <option value="counter2">Counter — 2-bit (sequential)</option>
+      <option value="include">Multiple Files — Full Adder</option>
+    </select>
+    <button id="urlBtn" title="Load design and testbench URLs or share your current project">Load / share</button>
+    <button id="fZip" title="Export all source files, local run scripts, and the last VCD">Export ZIP <span aria-hidden="true">↗</span></button>
+  </div>
+  <div class="tool-group run-tools"><label class="language-label" for="gen">Language</label>
+    <select id="gen" aria-label="Verilog language version">
+      <option value="2005" selected>Verilog-2005</option>
+      <option value="2009">Verilog/SV-2009</option>
+      <option value="2012">SystemVerilog-2012</option>
+    </select>
+    <button id="run" title="Compile and simulate (⌘ / Ctrl + Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l8 5-8 5z" fill="currentColor"/></svg><span id="runLabel">Run Simulation</span><kbd aria-hidden="true">⌘ ↵</kbd></button>
+  </div>
+</div>
+<ol class="learning-path" aria-label="Simulation workflow">
+<li><b>01</b><span><strong>Write the design</strong><small>Describe your circuit in Verilog.</small></span></li>
+<li><b>02</b><span><strong>Test your logic</strong><small>Add inputs and timing in a testbench.</small></span></li>
+<li><b>03</b><span><strong>Run Simulation</strong><small>Compile and execute your code.</small></span></li>
+<li><b>04</b><span><strong>Explore the signals</strong><small>Inspect waveforms and circuit structure.</small></span></li>
+</ol>
+<div class="workbench">
+<main aria-label="Verilog source editors">
+  <section class="pane" aria-labelledby="designTitle">
+    <h2><span class="pane-number" title="Write">01 /</span><span id="designTitle">Design</span><span class="pane-description">Your circuit</span><span class="grow"></span>
+      <button class="lnk" id="dClear">Clear</button><button class="lnk" id="dOpen">Open</button><button class="lnk" id="dSave">Save</button></h2>
+    <div class="filebar"><button id="designFile" class="ftab active" title="Double-click to rename design.v">design.v</button><button class="rename" id="dRename" aria-label="Rename design file">Rename</button></div>
+    <div class="editor"><textarea id="designSrc" aria-label="Design code" spellcheck="false"></textarea></div><div class="editor-meta"><span id="designPosition">Ln 1, Col 1</span><span>Verilog source <span class="meta-sep">/</span> UTF-8</span></div>
+  </section>
+  <section class="pane" aria-labelledby="testbenchTitle">
+    <h2><span class="pane-number" title="Test">02 /</span><span id="testbenchTitle">Testbench</span><span class="pane-description" id="tbDescription">Test your logic</span><span class="grow"></span>
+      <button class="lnk" id="fClear">Clear</button><button class="lnk" id="fOpen">Open</button><button class="lnk" id="fSave">Save</button></h2>
+    <div class="filebar"><div id="tabs" aria-label="Testbench and supporting files"></div><button class="rename" id="fRename" aria-label="Rename selected testbench or supporting file">Rename</button></div>
+    <div class="editor"><textarea id="src" aria-label="Testbench code" spellcheck="false"></textarea></div><div class="editor-meta"><span id="tbPosition">Ln 1, Col 1</span><span id="rightFileHint">Simulation stimulus</span></div>
+  </section>
 </main>
 
-<div id="vsplit" title="Drag to resize"></div>
+<div id="vsplit" title="Drag or use arrow keys to resize the results" role="separator" aria-label="Resize simulation results" aria-orientation="horizontal" tabindex="0" aria-valuemin="180" aria-valuemax="600" aria-valuenow="300"></div>
 <div id="bottom">
-  <div class="tabs">
-    <div class="tab active" data-v="console">Console</div>
-    <div class="tab" data-v="wave">Waveform</div>
-    <div class="tab" data-v="synth">Synthesize</div>
-    <div class="spacer"></div>
-    <a class="act" id="dlvcd" style="display:none">&darr; dump.vcd</a>
-    <div class="stat" id="stat">engine idle</div>
+  <div class="results-bar"><span class="results-label">03 / <b>Explore</b></span><div class="tabs" role="tablist" aria-label="Simulation results">
+    <button class="tab active" id="tab-console" role="tab" aria-controls="console" aria-selected="true" tabindex="0" data-v="console">Console</button>
+    <button class="tab" id="tab-wave" role="tab" aria-controls="wave" aria-selected="false" tabindex="-1" data-v="wave">Waveform</button>
+    <button class="tab" id="tab-synth" role="tab" aria-controls="synth" aria-selected="false" tabindex="-1" data-v="synth">Synthesize</button>
+  </div><div class="result-actions"><button class="act" id="dlvcd" style="display:none">↓ Download VCD</button>
+    <div class="stat" id="stat" role="status" aria-live="polite" data-state="ready">Ready</div></div>
   </div>
-  <pre id="console" class="view active"></pre>
-  <div id="wave" class="view">
+  <div id="console" class="view active" role="tabpanel" aria-labelledby="tab-console" tabindex="0">
+    <div class="console-intro"><div class="intro-kicker">YOUR FIRST SIMULATION</div><h1>Start with a circuit.</h1><p>Write your Verilog, define the test inputs, then run.<br>New to digital logic? Try a two-input AND gate.</p><div class="intro-actions"><button id="startExample">Load AND gate <span aria-hidden="true">↗</span></button><span>Real Verilog. Real waveforms.</span></div></div>
+  </div>
+  <div id="wave" class="view" role="tabpanel" aria-labelledby="tab-wave" tabindex="0">
     <aside id="siglist"></aside>
     <div id="hsplit" title="Drag to resize the signal list"></div>
     <div id="wavecol">
       <div id="wtools">
-        <button id="wfit">Fit</button>
-        <span class="hint">scroll = zoom &middot; drag = pan &middot; click = cursor</span>
+        <button id="topSignals" title="Plot signals directly in the testbench scope" disabled>Testbench signals</button><button id="wfit">Fit view</button><button id="wavePNG">Download PNG</button>
+        <span class="hint">Scroll to zoom <span class="hint-sep">/</span> Drag to pan <span class="hint-sep">/</span> Click for values</span>
         <span id="wmarker"></span>
         <span class="hint" id="wrange"></span>
       </div>
-      <div id="wavearea"><div class="empty">Run a simulation to see waveforms.</div></div>
+      <div id="wavearea"><div class="empty"><b>Signals start with a simulation.</b><span>Run your testbench, then select signals to explore their timing.</span></div></div>
     </div>
   </div>
-  <div id="synth" class="view">
+  <div id="synth" class="view" role="tabpanel" aria-labelledby="tab-synth" tabindex="0">
     <div id="stools">
       <span class="seg"><button id="synGates" class="on">Gates</button><button id="synRTL">RTL</button></span>
-      <button id="synRun">Synthesize</button>
-      <span class="hint">scroll = zoom &middot; drag = pan &middot; dbl-click = fit</span>
+      <button id="synRun">Synthesize</button><button id="synPNG">Download PNG</button>
+      <span class="hint">Scroll to zoom / Drag to pan / Double-click to fit</span>
       <span class="hint" id="synstat"></span>
     </div>
-    <div id="synarea"><div class="empty">Press <b>Synthesize</b> to see the synthesized circuit of design.v (gate-level or RTL).</div></div>
+    <div id="synarea"><div class="empty"><b>From Verilog to a circuit.</b><span>Synthesize your design to explore its Gates or RTL schematic.<br>The testbench is used for simulation only. Yosys loads on first use.</span></div></div>
   </div>
 </div>
+
+</div>
+<footer><span>Icarus Verilog <span class="footer-sep">/</span> WebAssembly</span></footer>
+<dialog id="helpDialog" aria-labelledby="helpTitle">
+  <div class="dialog-heading"><span class="eyebrow">VERILAB / FIELD NOTES</span><button id="closeHelp" aria-label="Close help">×</button></div>
+  <section id="guideContent"><h2 id="helpTitle">A circuit, a test, a waveform.</h2><p class="dialog-lead">Four steps from an idea to signals you can inspect.</p>
+    <ol class="guide-steps"><li><b>Write the design</b><span>Describe your circuit in the left editor. This is the module you’ll simulate and synthesize.</span></li><li><b>Test your logic</b><span>Instantiate the design in your testbench. Apply inputs, add delays, and finish with <code>$finish;</code>.</span></li><li><b>Run Simulation</b><span>Use the button or <kbd>⌘ / Ctrl + Enter</kbd>. Console shows real compiler diagnostics and <code>$display</code> / <code>$monitor</code> output.</span></li><li><b>Explore the signals</b><span>In Waveform, choose signals or click Testbench signals. Scroll to zoom, drag to pan, and click to inspect values. Fit view restores the full range.</span></li></ol>
+    <div class="guide-note">For waveforms, include <code>$dumpfile("dump.vcd");</code> and <code>$dumpvars(0, tb);</code> in your testbench. Replace <code>tb</code> with your testbench module name.</div>
+    <p>Use <b>+</b> for supporting files. Include Verilog modules using <code>`include "file.v"</code>. Open/Save act on their own editor; Export ZIP saves the whole project.</p>
+  </section>
+</dialog>
 
 <script type="module">
 import initIvlpp from './ivlpp.js';
@@ -272,79 +162,118 @@ function sanitize(s){                                 // fix invisible/smart cha
           .replace(/[\u201C\u201D\u201E\u201F\u2033]/g,'"');
 }
 
-/* ---------- editors: one CodeMirror, tabbed files (v1.33) ---------- */
-let ED=null;
-const BLANK_DESIGN=`// design.v — write your module here, or load one from Examples
+/* ---------- two editors, sharing the existing file model and engine adapters ---------- */
+let ED=null, designED=null;
+const BLANK_DESIGN=`// Your circuit starts here.
+// Write a Verilog module, or load an example above.
 
 `;
-const BLANK_TB=`// testbench.v — write your testbench here, or load one from Examples
+const BLANK_TB=`// Define inputs and test conditions for your circuit.
+// Use $dumpfile("dump.vcd") and $dumpvars to record waveforms.
 
 `;
-const DEFAULT_NAMES=['testbench.v','design.v'];       // tab 0 = testbench role, tab 1 = design role: always present, renamable, not closable (v1.34)
+const DEFAULT_NAMES=['testbench.v','design.v']; // roles stay stable when files are renamed
 const isRole=i=>i<2;
 let files=[{name:'testbench.v',src:BLANK_TB},{name:'design.v',src:BLANK_DESIGN}];
-let active=0;
+let active=0, rightIndex=0; // right editor shows testbench or a supporting file
 const isVerilogName=n=>/\.(v|sv|vh|svh|verilog)$/i.test(n);
 (function(){
   $('#src').value=files[0].src;
+  $('#designSrc').value=files[1].src;
   if(window.CodeMirror){
-    const o={lineNumbers:true,mode:'verilog',tabSize:2,indentUnit:2};
+    const o={lineNumbers:true,mode:'verilog',tabSize:2,indentUnit:2,theme:'verilab'};
     ED=CodeMirror.fromTextArea($('#src'),o);
+    designED=CodeMirror.fromTextArea($('#designSrc'),o);
+    ED.getInputField().setAttribute('aria-label','Testbench code');
+    designED.getInputField().setAttribute('aria-label','Design code');
+    ED.on('focus',()=>{ active=rightIndex; });
+    designED.on('focus',()=>{ active=1; });
+    for(const [ed,id] of [[designED,'designPosition'],[ED,'tbPosition']]){
+      ed.on('cursorActivity',()=>{ const pos=ed.getCursor(); $('#'+id).textContent='Ln '+(pos.line+1)+', Col '+(pos.ch+1); });
+    }
   }
+  $('#src').onfocus=()=>{ active=rightIndex; };
+  $('#designSrc').onfocus=()=>{ active=1; };
   renderTabs();
 })();
-const edGet=()=>ED?ED.getValue():$('#src').value;
-const edSet=t=>{ if(ED) ED.setValue(t); else $('#src').value=t; };
-const syncActive=()=>{ files[active].src=edGet(); };          // editor -> model
+const editorGet=i=>i===1 ? (designED?designED.getValue():$('#designSrc').value) : (ED?ED.getValue():$('#src').value);
+const editorSet=(i,t)=>{
+  const ed=i===1?designED:ED, el=i===1?$('#designSrc'):$('#src');
+  if(ed) ed.setValue(t); else el.value=t;
+};
+const edGet=()=>editorGet(active);
+const edSet=t=>editorSet(active,t);
+const syncActive=()=>{ files[1].src=editorGet(1); files[rightIndex].src=editorGet(rightIndex); };
+const refreshEditors=()=>{ if(ED) ED.refresh(); if(designED) designED.refresh(); };
 function renderTabs(){
+  $('#designFile').textContent=files[1].name;
+  $('#designFile').title='Double-click to rename '+files[1].name;
   const box=$('#tabs'); box.innerHTML='';
   files.forEach((f,i)=>{
-    const t=document.createElement('span'); t.className='ftab'+(i===active?' active':''); t.textContent=f.name;
-    t.title=(i===0?'testbench':i===1?'design':'extra file (`include / $readmemb)')+' \u2014 double-click to rename';
+    if(i===1) return; // design remains visible in its own editor
+    const t=document.createElement('button'); t.className='ftab'+(i===rightIndex?' active':''); t.textContent=f.name;
+    t.setAttribute('aria-pressed',String(i===rightIndex));
+    t.title=(i===0?'testbench':'supporting file (`include / $readmemb)')+' — double-click to rename';
     t.onclick=()=>switchTo(i); t.ondblclick=e=>{ e.preventDefault(); renameFile(i); };
-    if(!isRole(i)){ const x=document.createElement('span'); x.className='x'; x.textContent='\u00d7'; x.title='close '+f.name;
-      x.onclick=e=>{ e.stopPropagation(); closeFile(i); }; t.appendChild(x); }
     box.appendChild(t);
+    if(!isRole(i)){
+      const x=document.createElement('button'); x.className='rename'; x.textContent='×'; x.setAttribute('aria-label','Close '+f.name);
+      x.onclick=()=>closeFile(i); box.appendChild(x);
+    }
   });
-  const add=document.createElement('span'); add.className='ftab add'; add.textContent='+'; add.title='Add a file (e.g. testvectors.txt or halfadder.v for `include)';
+  const add=document.createElement('button'); add.className='ftab add'; add.textContent='+';
+  add.title='Add a supporting file (e.g. halfadder.v or testvectors.txt)'; add.setAttribute('aria-label','Add supporting file');
   add.onclick=addFile; box.appendChild(add);
+  const label=rightIndex===0?'Testbench code':'Supporting file code: '+files[rightIndex].name;
+  $('#src').setAttribute('aria-label',label);
+  if(ED) ED.getInputField().setAttribute('aria-label',label);
+  $('#testbenchTitle').textContent=rightIndex===0?'Testbench':'Supporting file';
+  $('#tbDescription').textContent=rightIndex===0?'Test your logic':'Includes & data';
+  $('#rightFileHint').textContent=rightIndex===0?'Simulation stimulus':'Available to `include / $readmemb';
+  if(ED) ED.setOption('mode',isVerilogName(files[rightIndex].name)?'verilog':null);
+  if(designED) designED.setOption('mode',isVerilogName(files[1].name)?'verilog':null);
 }
 function switchTo(i){
-  if(i===active){ return; } syncActive(); active=i;
-  if(ED) ED.setOption('mode', isVerilogName(files[i].name)?'verilog':null);
-  edSet(files[i].src); if(ED) ED.refresh(); renderTabs();
+  syncActive(); active=i;
+  if(i!==1){ rightIndex=i; editorSet(i,files[i].src); }
+  renderTabs(); refreshEditors();
 }
 function cleanName(n){ return String(n||'').trim().replace(/[\/\\]/g,''); }
 function addFile(name,src){
   if(typeof name!=='string'){ name=prompt('File name (e.g. testvectors.txt, or halfadder.v to `include it):','testvectors.txt'); }
   name=cleanName(name); if(!name) return null;
   const i=files.findIndex(f=>f.name===name);
-  if(i>=0){ if(src!=null) files[i].src=src; switchTo(i); return i; }
-  syncActive(); files.push({name, src: src!=null?src:''}); switchTo(files.length-1); return files.length-1;
+  if(i>=0){ switchTo(i); if(src!=null){ editorSet(i,src); syncActive(); } return i; }
+  syncActive(); files.push({name, src:src!=null?src:''}); switchTo(files.length-1); return files.length-1;
 }
-function renameFile(i){                               // v1.34
-  const n=cleanName(prompt('Rename '+files[i].name+' to:', files[i].name)); if(!n || n===files[i].name) return;
-  if(files.some((f,k)=>k!==i && f.name===n)){ alert('A tab named '+n+' already exists.'); return; }
-  files[i].name=n; if(i===active && ED) ED.setOption('mode', isVerilogName(n)?'verilog':null); renderTabs();
+function renameFile(i){
+  const n=cleanName(prompt('Rename '+files[i].name+' to:',files[i].name)); if(!n || n===files[i].name) return;
+  if(files.some((f,k)=>k!==i && f.name===n)){ alert('A file named '+n+' already exists.'); return; }
+  files[i].name=n; renderTabs();
 }
 function closeFile(i){
   if(isRole(i)) return;
+  syncActive();
   if(files[i].src.trim()!=='' && !confirm(files[i].name+' will be closed — its contents will be lost. Continue?')) return;
-  files.splice(i,1); if(active>=i && active>0) active--; if(active>=files.length) active=files.length-1;
-  if(ED) ED.setOption('mode', isVerilogName(files[active].name)?'verilog':null);
-  edSet(files[active].src); renderTabs();
+  files.splice(i,1);
+  if(rightIndex===i) rightIndex=0; else if(rightIndex>i) rightIndex--;
+  active=rightIndex; editorSet(rightIndex,files[rightIndex].src); renderTabs(); refreshEditors();
 }
-const closeExtras=()=>{ syncActive(); files=files.slice(0,2); if(active>=files.length) active=0;
-  if(ED) ED.setOption('mode', isVerilogName(files[active].name)?'verilog':null); edSet(files[active].src); renderTabs(); };
+const closeExtras=()=>{ syncActive(); files=files.slice(0,2); rightIndex=0; active=0;
+  editorSet(0,files[0].src); renderTabs(); refreshEditors(); };
 const resetNames=()=>{ files[0].name=DEFAULT_NAMES[0]; files[1].name=DEFAULT_NAMES[1]; renderTabs(); };
 const roleGet=i=>{ syncActive(); return files[i].src; };
-const roleSet=(i,t)=>{ syncActive(); files[i].src=t; if(active===i) edSet(t); };
+const roleSet=(i,t)=>{ syncActive(); files[i].src=t; if(i===1 || rightIndex===i) editorSet(i,t); };
 const extraFiles=()=>{ syncActive(); return files.slice(2).map(f=>({name:f.name, src:f.src.endsWith('\n')?f.src:f.src+'\n'})); };
 const getTB=()=>roleGet(0);
 const getDesign=()=>roleGet(1);
 const setTB=t=>roleSet(0,t);
 const setDesign=t=>roleSet(1,t);
 const tbName=()=>files[0].name, designName=()=>files[1].name;
+$('#designFile').onclick=()=>switchTo(1);
+$('#designFile').ondblclick=()=>renameFile(1);
+$('#dRename').onclick=()=>renameFile(1);
+$('#fRename').onclick=()=>renameFile(rightIndex);
 
 const isPristine=()=> (getTB().trim()===''||getTB()===BLANK_TB) && (getDesign().trim()===''||getDesign()===BLANK_DESIGN) && extraFiles().length===0;
 function loadPair(d,t){                               // replace both main files, warn if real code would be lost
@@ -362,8 +291,15 @@ function saveText(name,text){                        // download editor contents
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
   a.download=name; a.click(); URL.revokeObjectURL(a.href);
 }
-$('#fOpen').onclick=()=>openInto(t=>{ edSet(t); syncActive(); });
-$('#fSave').onclick=()=>{ syncActive(); saveText(files[active].name, files[active].src); };
+function openFile(i){
+  const file=files[i]; // retain the intended file even if focus changes during the picker
+  openInto(t=>{ const idx=files.indexOf(file); if(idx<0) return;
+    syncActive(); file.src=t; if(idx===1 || idx===rightIndex) editorSet(idx,t); });
+}
+$('#fOpen').onclick=()=>openFile(rightIndex);
+$('#dOpen').onclick=()=>openFile(1);
+$('#fSave').onclick=()=>{ syncActive(); saveText(files[rightIndex].name,files[rightIndex].src); };
+$('#dSave').onclick=()=>{ syncActive(); saveText(designName(),files[1].src); };
 
 /* ---------- equivalent command line (v1.35): what a student would type with a local Icarus install ---------- */
 function cmdLines(){
@@ -393,10 +329,10 @@ $('#fZip').onclick=()=>{
   syncActive();
   const [c1,c2]=cmdLines();
   const entries=files.map(f=>({name:f.name, text:f.src.endsWith('\n')?f.src:f.src+'\n'}));
-  entries.push({name:'run.sh',  text:'#!/bin/sh\n# generated by VeriSim — needs Icarus Verilog (iverilog, vvp); view the waveform with: gtkwave dump.vcd\n'+c1+' && '+c2+'\n'});
-  entries.push({name:'run.bat', text:'@echo off\r\nrem generated by VeriSim - needs Icarus Verilog (iverilog, vvp) on PATH; view the waveform with: gtkwave dump.vcd\r\n'+c1+'\r\nif %errorlevel% neq 0 exit /b %errorlevel%\r\n'+c2+'\r\npause\r\n'});
+  entries.push({name:'run.sh',  text:'#!/bin/sh\n# generated by VeriLab — needs Icarus Verilog (iverilog, vvp); view the waveform with: gtkwave dump.vcd\n'+c1+' && '+c2+'\n'});
+  entries.push({name:'run.bat', text:'@echo off\r\nrem generated by VeriLab - needs Icarus Verilog (iverilog, vvp) on PATH; view the waveform with: gtkwave dump.vcd\r\n'+c1+'\r\nif %errorlevel% neq 0 exit /b %errorlevel%\r\n'+c2+'\r\npause\r\n'});
   if(lastVCD) entries.push({name:'dump.vcd', text:lastVCD});   // waveform of the last run, for GTKWave (v1.36)
-  const base=designName().replace(/\.[^.]*$/,'')||'verisim';
+  const base=designName().replace(/\.[^.]*$/,'')||'verilab';
   const a=document.createElement('a'); a.href=URL.createObjectURL(makeZip(entries)); a.download=base+'_project.zip'; a.click(); URL.revokeObjectURL(a.href);
   log('downloaded '+base+'_project.zip ('+entries.length+' files)','sys');
 };
@@ -404,8 +340,10 @@ function clearPane(get,set,blank){                   // OK -> clear this pane on
   if(get().trim()===''||get()===blank){ set(blank); return; }   // already empty: just reset, no prompt
   if(confirm(files[active].name+' will be cleared — its contents will be lost. Continue?')) set(blank);
 }
-$('#fClear').onclick=()=>{
-  clearPane(edGet, t=>{ edSet(t); syncActive(); }, active===0?BLANK_TB:active===1?BLANK_DESIGN:''); };
+$('#fClear').onclick=()=>{ active=rightIndex;
+  clearPane(edGet,t=>{ edSet(t); syncActive(); },rightIndex===0?BLANK_TB:''); };
+$('#dClear').onclick=()=>{ active=1;
+  clearPane(edGet,t=>{ edSet(t); syncActive(); },BLANK_DESIGN); };
 
 /* ---------- example library: half adder in three modeling styles, two sequential circuits, one multi-file (`include) project ---------- */
 const HA_TB = title => `\`timescale 1ns/1ps
@@ -429,6 +367,31 @@ module tb;
 endmodule
 `;
 const EXAMPLES = {
+  and: {
+    design:`// A two-input AND gate: y is high only when both inputs are high.
+module and_gate(input a, input b, output y);
+  assign y = a & b;
+endmodule
+`,
+    tb:`\`timescale 1ns/1ps
+module tb;
+  reg a, b;
+  wire y;
+  and_gate dut(.a(a), .b(b), .y(y));
+
+  initial begin
+    $dumpfile("dump.vcd");
+    $dumpvars(0, tb);
+    $monitor("t=%0d ns  a=%b b=%b -> y=%b", $time, a, b, y);
+    a=0; b=0;
+    #10 a=0; b=1;
+    #10 a=1; b=0;
+    #10 a=1; b=1;
+    #10 $finish;
+  end
+endmodule
+`
+  },
   gate: { tb: HA_TB('Gate-Level'), design:
 `\`timescale 1ns/1ps
 // Gate-Level Modeling: structural netlist of gate primitives
@@ -560,10 +523,14 @@ endmodule
 ` } ]
   }
 };
+$('#startExample').onclick=()=>loadExample('and');
+function loadExample(v){
+  const ex=EXAMPLES[v]; if(!ex) return;
+  if(loadPair(ex.design,ex.tb)){ (ex.extra||[]).forEach(f=>addFile(f.name,f.src)); switchTo(0); log('Loaded '+(v==='and'?'AND gate':v)+'. Ready to run.','sys'); }
+}
 $('#examples').onchange=e=>{
   const v=e.target.value; e.target.value='';          // reset back to the placeholder
-  const ex=EXAMPLES[v]; if(!ex) return;
-  if(loadPair(ex.design, ex.tb)){ (ex.extra||[]).forEach(f=>addFile(f.name, f.src)); switchTo(1); }   // extra tabs (v1.40)
+  loadExample(v);
 };
 
 /* ---------- console / status ---------- */
@@ -572,7 +539,10 @@ const clearCon=()=>con.textContent='';
 function log(t,cls){ cls=cls||'out'; if(!t) return;
   const s=document.createElement('span'); s.className='l-'+cls;
   s.textContent=t.replace(/\s+$/,'')+'\n'; con.appendChild(s); con.scrollTop=con.scrollHeight; }
-const status=(t,ok)=>{ $('#stat').innerHTML = ok?'<b>'+t+'</b>':t; };
+const status=(text,state='ready')=>{
+  $('#stat').textContent=text; $('#stat').dataset.state=state;
+  $('#bottom').setAttribute('aria-busy',String(state==='busy'));
+};
 
 /* ---------- engine ---------- */
 const ivlConf=g=>`basedir:/
@@ -619,13 +589,25 @@ async function simulate(bytes, extra=[]){
 
 let lastVCD=null;
 async function run(){
-  const b=$('#run'); b.disabled=true;
+  const b=$('#run'); b.disabled=true; $('#runLabel').textContent='Running…';
+  show('console');
   clearCon(); $('#dlvcd').style.display='none';
   const prevNames = WD ? selOrder.map(id=>WD.vars[id]&&WD.vars[id].name).filter(Boolean) : [];
+  WD=null; lastVCD=null; _geom=null; $('#topSignals').disabled=true;
+  $('#siglist').style.display='none'; $('#hsplit').style.display='none';
+  $('#wavearea').innerHTML='<div class="empty">Waiting for waveform data from this simulation.</div>';
+  $('#wmarker').textContent=''; $('#wrange').textContent='';
   curT=null; view0=0; viewSpan=null;
   const g=$('#gen').value;
   try{
-    status('preprocessing&hellip;');
+    if(!getTB().replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/[^\n]*/g,'').trim()){
+      log('Add a testbench to run your simulation. A testbench supplies inputs and timing to your design. Write one in the Testbench editor, or choose Examples → AND gate — start here for a complete working example.','err');
+      status('Testbench needed','error');
+      $('#wavearea').innerHTML='<div class="empty">Add a testbench, then run your simulation to generate waveforms.</div>';
+      return;
+    }
+    status('Preparing sources…','busy');
+    await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
     for(const c of cmdLines()) log('$ '+c,'sys');          // equivalent local command line (v1.35)
     const d0=getDesign(), t0=getTB(), d=sanitize(d0), t=sanitize(t0);
     if(d!==d0||t!==t0) log('Note: normalized non-standard characters from pasted text (non-breaking spaces / smart quotes).','sys');
@@ -633,7 +615,7 @@ async function run(){
     const extra=extraFiles().map(f=>({name:f.name, src:sanitize(f.src)}));
     const pp=await preprocessAll([{name:designName(),src:d},{name:tbName(),src:t}], extra);   // real tab names (v1.34)
     const tPP=performance.now()-tPP0;
-    status('compiling&hellip;');
+    status('Compiling…','busy');
     const tC0=performance.now();
     const c=await compile(pp,g);
     const tC=performance.now()-tC0;
@@ -644,10 +626,10 @@ async function run(){
         if(orphan.length) log('Hint: extra tabs are not compiled on their own (see the command line above). '
           +'Add `include "'+orphan[0].name+'" at the top of '+designName()+' or '+tbName()+', or move the module into '+designName()+'. '
           +'Examples > "Multiple Files" shows how.','warn'); }
-      status('compile error'); show('console'); return; }
+      status('Failed · compile error','error'); $('#wavearea').innerHTML='<div class="empty">Fix the compilation errors in Console, then run again.</div>'; show('console'); return; }
     const warn=c.err.split('\n').filter(l=>!/system\.vpi|dynamic linking not enabled/.test(l)).join('\n');
     if(warn.trim()) log(warn,'warn');
-    status('simulating&hellip;');
+    status('Simulating…','busy');
     const tS0=performance.now();
     const s=await simulate(c.vvp, extra);
     const tS=performance.now()-tS0;
@@ -656,7 +638,7 @@ async function run(){
     if(s.vcd){ lastVCD=s.vcd; const tW0=performance.now(); WD=parseVCD(s.vcd); tW=performance.now()-tW0;
       const byName={}; for(const id of WD.order) byName[WD.vars[id].name]=id;
       selOrder=prevNames.map(n=>byName[n]).filter(Boolean);   // [] on first run; keeps picks on re-run
-      buildSigList(); renderWave();
+      $('#topSignals').disabled=false; buildSigList(); renderWave();
       $('#dlvcd').style.display='inline'; }
     else { WD=null; selOrder=[]; lastVCD=null; $('#siglist').style.display='none'; $('#hsplit').style.display='none';
       $('#wavearea').innerHTML='<div class="empty">No waveform — add $dumpfile("dump.vcd"); and $dumpvars(0, tb); to the testbench.</div>'; }
@@ -664,21 +646,29 @@ async function run(){
     log('timings ms: preprocess='+fmt(tPP)+' compile='+fmt(tC)+' simulate='+fmt(tS)
         +(s.vcd?(' vcd-parse='+fmt(tW)+' (vcd '+(s.vcd.length/1024>=1024?(s.vcd.length/1048576).toFixed(1)+' MB':Math.round(s.vcd.length/1024)+' KB')+')'):'')
         +' total='+fmt(tPP+tC+tS+tW)+' (incl. per-stage WASM init)','sys');
-    status('done',true);
-  }catch(e){ log('Engine error: '+(e&&e.message||e),'err'); status('error'); show('console'); }
-  finally{ b.disabled=false; }
+    status('Completed','success');
+  }catch(e){ log('Engine error: '+(e&&e.message||e),'err'); status('Failed · engine error','error'); $('#wavearea').innerHTML='<div class="empty">Simulation failed. See Console for details.</div>'; show('console'); }
+  finally{ b.disabled=false; $('#runLabel').textContent='Run Simulation'; }
 }
 
 /* ---------- tabs & links ---------- */
 function show(v){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));
+  document.querySelectorAll('.tab').forEach(t=>{ const selected=t.dataset.v===v;
+    t.classList.toggle('active',selected); t.setAttribute('aria-selected',String(selected)); t.tabIndex=selected?0:-1; });
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   const id = v==='wave'?'wave':v==='synth'?'synth':'console';
   $('#'+id).classList.add('active');
   if(v==='wave' && WD) renderWave();   // fix: correct width once the tab is visible
   if(v==='synth' && synActivated) synthesize(synMode);
 }
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>show(t.dataset.v);
+  t.onkeydown=e=>{
+    const tabs=[...document.querySelectorAll('.tab')], i=tabs.indexOf(t);
+    const next=e.key==='ArrowRight'?(i+1)%tabs.length:e.key==='ArrowLeft'?(i+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:null;
+    if(next!==null){ e.preventDefault(); show(tabs[next].dataset.v); tabs[next].focus(); }
+  };
+});
 $('#run').onclick=run;
 $('#dlvcd').onclick=()=>{ if(!lastVCD)return; const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([lastVCD],{type:'text/plain'})); a.download='dump.vcd'; a.click(); URL.revokeObjectURL(a.href); };
@@ -728,7 +718,7 @@ async function synthesize(mode){
     renderNetlist(netlist, mode);
   }catch(e){
     const errLines = logBuf.split('\n').filter(l=>/error/i.test(l)).slice(0,8).join('\n').trim();
-    const msg = errLines || (e&&e.message) || String(e);   // prefer Yosys's own error lines
+    const msg = String(errLines || (e&&e.message) || e).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');   // prefer Yosys's own error lines
     synEmpty('<b>Synthesis error</b><br><pre style="white-space:pre-wrap;margin:6px 0;font-size:11px">'+escapeHtml(msg)+'</pre>'
       +'<span class="dim">Only '+designName()+' is synthesized (not the testbench). Non-synthesizable constructs (#delays, $display, initial) can\'t be synthesized.</span>');
     synInfo('');
@@ -886,7 +876,7 @@ function renderWave(){
   const defs=add('defs',{}); const cp=add('clipPath',{id:'pc'},defs);
   add('rect',{x:plotX,y:0,width:plotW,height:H},cp);
   const G=add('g',{'clip-path':'url(#pc)'});
-  add('line',{x1:plotX,y1:0,x2:plotX,y2:top+order.length*rowH+2,stroke:'#e2e6ec'});
+  add('line',{x1:plotX,y1:0,x2:plotX,y2:top+order.length*rowH+2,stroke:'var(--wave-grid)'});
 
   order.forEach((id,i)=>{
     const v=vars[id], y=top+i*rowH, hi=y+6, lo=y+rowH-12;
@@ -896,7 +886,7 @@ function renderWave(){
       const t0=vals[k][0], val=vals[k][1], t1=(k+1<vals.length)?vals[k+1][0]:tmax;
       if(t1<view0 || t0>view0+vw) continue;
       const x0=X(t0), x1=X(t1), bad=/[xz]/i.test(val), isX=/x/i.test(val);
-      const fillU=isX?'#15191f':'#9aa3af', wv=Math.max(0,x1-x0);   // unknown fill: x dark, z gray
+      const fillU=isX?'var(--wave-unknown)':'var(--wave-muted)', wv=Math.max(0,x1-x0);   // unknown fill: x dark, z gray
       if(v.width===1){
         if(bad){
           add('rect',{x:x0,y:hi,width:wv,height:lo-hi,fill:fillU,opacity:isX?.85:.45},G);
@@ -908,14 +898,14 @@ function renderWave(){
       } else {
         if(bad){
           add('rect',{x:x0+1,y:hi,width:Math.max(0,wv-2),height:lo-hi,fill:fillU,opacity:isX?.8:.45},G);
-          if(x1-x0>20) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:isX?'#fff':'#15191f','font-size':11,'text-anchor':'middle'},G)
+          if(x1-x0>20) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:'var(--technical)','font-size':11,'text-anchor':'middle'},G)
             .textContent=isX?'x':'z';
         } else {
           add('line',{x1:x0+2,y1:hi,x2:x1-2,y2:hi,stroke:'var(--wave)','stroke-width':1.4},G);
           add('line',{x1:x0+2,y1:lo,x2:x1-2,y2:lo,stroke:'var(--wave)','stroke-width':1.4},G);
           add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:hi,stroke:'var(--wave)','stroke-width':1.4},G);
           add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:lo,stroke:'var(--wave)','stroke-width':1.4},G);
-          if(x1-x0>26) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:'#15191f','font-size':11,'text-anchor':'middle'},G)
+          if(x1-x0>26) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:'var(--wave-text)','font-size':11,'text-anchor':'middle'},G)
             .textContent=fmt(v,val);
         }
       }
@@ -924,16 +914,16 @@ function renderWave(){
 
   // time axis for the visible window
   const ay=top+order.length*rowH+16;
-  add('line',{x1:plotX,y1:ay,x2:plotX+plotW,y2:ay,stroke:'#e2e6ec'});
+  add('line',{x1:plotX,y1:ay,x2:plotX+plotW,y2:ay,stroke:'var(--wave-grid)'});
   const step=niceStep(vw);
   for(let t=Math.ceil(view0/step)*step; t<=view0+vw+1e-9; t+=step){ const x=X(t);   // ticks at exact integer times
-    add('line',{x1:x,y1:ay-3,x2:x,y2:ay+3,stroke:'#aab2bd'});
-    add('text',{x:x,y:ay+16,fill:'#677083','font-size':10,'text-anchor':'middle'}).textContent=fmtTime(t); }
+    add('line',{x1:x,y1:ay-3,x2:x,y2:ay+3,stroke:'var(--wave-tick)'});
+    add('text',{x:x,y:ay+16,fill:'var(--wave-muted)','font-size':10,'text-anchor':'middle'}).textContent=fmtTime(t); }
 
   // time cursor (black); the per-signal values at the marker are in the names column, time in the toolbar
   if(ct!=null){
     if(ct>=view0 && ct<=view0+vw){ const cx=X(ct);
-      add('line',{x1:cx,y1:top-4,x2:cx,y2:ay,stroke:'#15191f','stroke-width':1}); }
+      add('line',{x1:cx,y1:top-4,x2:cx,y2:ay,stroke:'var(--amber)','stroke-width':1}); }
     $('#wmarker').textContent='Marker: '+fmtTime(ct);
   } else $('#wmarker').textContent='';
 
@@ -975,20 +965,69 @@ window.addEventListener('mouseup',e=>{ if(!_drag)return;
   if(!_drag.moved && _geom){ const x=e.clientX-waveArea.getBoundingClientRect().left; if(x<_geom.plotX){ _drag=null; return; }   // click on the names column: no cursor
     let t=_geom.view0+(x-_geom.plotX)/_geom.plotW*_geom.vw; curT=Math.max(0,Math.min(_geom.tmax,t)); renderWave(); }
   _drag=null; });
+$('#topSignals').onclick=()=>{
+  if(!WD) return;
+  const shallowest=Math.min(...WD.order.map(id=>WD.vars[id].name.split('.').length));
+  selOrder=WD.order.filter(id=>WD.vars[id].name.split('.').length===shallowest);
+  buildSigList(); renderWave();
+};
+// Rasterize the existing SVG viewport; no simulation or schematic data is invented.
+async function downloadViewerPNG(area, button, filename){
+  const source=area.querySelector('svg');
+  if(!source){ alert('Generate a '+(area.id==='wavearea'?'waveform and select signals':'schematic')+' before exporting a PNG.'); return; }
+  button.disabled=true;
+  try{
+    await document.fonts.ready;
+    const bounds=area.getBoundingClientRect(), rect=source.getBoundingClientRect();
+    const canvas=document.createElement('canvas'), scale=2;
+    canvas.width=Math.ceil(area.clientWidth*scale); canvas.height=Math.ceil(area.clientHeight*scale);
+    const ctx=canvas.getContext('2d'); ctx.scale(scale,scale);
+    ctx.fillStyle=getComputedStyle(area).backgroundColor; ctx.fillRect(0,0,canvas.width/scale,canvas.height/scale);
+    const copy=source.cloneNode(true), originals=[source,...source.querySelectorAll('*')], clones=[copy,...copy.querySelectorAll('*')];
+    originals.forEach((el,i)=>{ const style=getComputedStyle(el); for(const key of ['fill','stroke','stroke-width','opacity','font-size','font-family','font-weight','text-anchor','dominant-baseline','visibility']) clones[i].style.setProperty(key,style.getPropertyValue(key)); });
+    copy.style.transform='none'; copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)],{type:'image/svg+xml;charset=utf-8'}));
+    try{ const img=new Image(); img.src=url; await img.decode(); ctx.drawImage(img,rect.left-bounds.left,rect.top-bounds.top,rect.width,rect.height); }
+    finally{ URL.revokeObjectURL(url); }
+    // HTML signal labels live beside the waveform SVG; retain their visible positions.
+    area.querySelectorAll('#wnames .nm span, #wnames .val').forEach(el=>{
+      const r=el.getBoundingClientRect(), st=getComputedStyle(el);
+      ctx.save(); const names=area.querySelector('#wnames').getBoundingClientRect();
+      ctx.beginPath(); ctx.rect(names.left-bounds.left,0,names.width,area.clientHeight); ctx.clip();
+      ctx.font=st.font; ctx.fillStyle=st.color; ctx.textBaseline='middle';
+      ctx.fillText(el.textContent,r.left-bounds.left,r.top-bounds.top+r.height/2); ctx.restore();
+    });
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    if(!blob) throw new Error('PNG encoding failed');
+    const urlPNG=URL.createObjectURL(blob), link=document.createElement('a');
+    link.href=urlPNG; link.download=filename; link.click(); setTimeout(()=>URL.revokeObjectURL(urlPNG),1000);
+  }catch(error){ alert('PNG export failed: '+error.message); }
+  finally{button.disabled=false;}
+}
+$('#wavePNG').onclick=()=>downloadViewerPNG($('#wavearea'),$('#wavePNG'),'verilab-waveform.png');
+$('#synPNG').onclick=()=>downloadViewerPNG($('#synarea'),$('#synPNG'),'verilab-schematic.png');
 $('#wfit').onclick=()=>{ viewSpan=null; view0=0; renderWave(); };
 window.addEventListener('resize',()=>{ if(WD) renderWave(); });
 
 /* drag the splitter to resize the console/waveform panel */
 (function(){
   const split=$('#vsplit'), bottom=$('#bottom'); let dragging=false;
+  function resizeResults(height){
+    const maximum=Math.max(180,$('.workbench').clientHeight-220);
+    const h=Math.max(180,Math.min(maximum,height)); bottom.style.height=h+'px';
+    split.setAttribute('aria-valuemax',String(maximum)); split.setAttribute('aria-valuenow',String(Math.round(h)));
+  }
+  split.addEventListener('keydown',e=>{
+    if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key)) return;
+    e.preventDefault(); resizeResults(e.key==='Home'?180:e.key==='End'?Infinity:bottom.clientHeight+(e.key==='ArrowUp'?24:-24));
+    refreshEditors(); if(WD) renderWave();
+  });
   split.addEventListener('mousedown',e=>{ dragging=true; document.body.style.userSelect='none'; e.preventDefault(); });
   window.addEventListener('mousemove',e=>{ if(!dragging) return;
-    const total=document.documentElement.clientHeight;
-    const h=Math.max(110, Math.min(total-150, total-e.clientY-3));
-    bottom.style.height=h+'px';
+    resizeResults(bottom.getBoundingClientRect().bottom-e.clientY-4);
   });
   window.addEventListener('mouseup',()=>{ if(!dragging) return; dragging=false; document.body.style.userSelect='';
-    if(ED) ED.refresh(); if(WD) renderWave(); });
+    refreshEditors(); if(WD) renderWave(); });
   // signal-list width (v1.37)
   const hsplit=$('#hsplit'), wave=$('#wave'); let hdrag=false;
   hsplit.addEventListener('mousedown',e=>{ hdrag=true; document.body.style.userSelect='none'; e.preventDefault(); });
@@ -1027,7 +1066,7 @@ async function loadFromUrls(dURL,tURL){                  // fetch+place both pan
   const base=u=>cleanName(decodeURIComponent(String(u).split(/[?#]/)[0].split('/').pop()||''));
   if(d!=null){ setDesign(d); const n=base(dURL); if(n && !files.some((f,k)=>k!==1&&f.name===n)) files[1].name=n; }   // name tabs after the files (v1.34)
   if(t!=null){ setTB(t);     const n=base(tURL); if(n && !files.some((f,k)=>k!==0&&f.name===n)) files[0].name=n; }
-  renderTabs(); if(ED) ED.refresh();
+  renderTabs(); refreshEditors();
   log('loaded from URL'+(dURL?'  design='+dURL:'')+(tURL?'  testbench='+tURL:''),'sys');
   return true;
 }
@@ -1060,7 +1099,7 @@ function loadFromHash(){
     if(tB!=null) setTB(sanitize(b64urlDecode(tB)));
     if(fB!=null){ for(const [n,src] of JSON.parse(b64urlDecode(fB))) addFile(cleanName(n), String(src)); }   // extra tabs (v1.33)
     switchTo(0);
-    if(ED) ED.refresh();
+    refreshEditors();
     log('loaded inline code from link','sys');
   }catch(err){
     log('inline link decode failed: '+((err&&err.message)||err),'err');
@@ -1189,7 +1228,16 @@ window.addEventListener('hashchange', loadFromHash);
   };
 })();
 
-status('engine ready &mdash; press Run');
+const helpDialog=$('#helpDialog');
+$('#guideBtn').onclick=()=>helpDialog.showModal();
+$('#closeHelp').onclick=()=>helpDialog.close();
+helpDialog.addEventListener('click',e=>{ if(e.target===helpDialog){ const r=helpDialog.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) helpDialog.close(); } });
+document.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&!helpDialog.open&&!$('.modal-bg.on')){ e.preventDefault(); if(!$('#run').disabled) run(); } });
+// Keep both editors crisp after fonts load or the workspace changes dimensions.
+new ResizeObserver(()=>{ refreshEditors(); }).observe($('main'));
+document.fonts.ready.then(()=>{ refreshEditors(); if(WD) renderWave(); });
+
+status('Ready');
 </script>
 </body>
 </html>

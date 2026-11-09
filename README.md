@@ -1,11 +1,77 @@
-# VeriSim
+# VeriLab
 
 **Verilog in your browser — fully client-side.**
 A browser-based Verilog simulator built by compiling [Icarus Verilog](https://github.com/steveicarus/iverilog) to WebAssembly. No server, no install: edit, compile, simulate, view waveforms, and synthesize to a gate-level or RTL schematic — entirely in the page.
 
-**Live:** https://senolgulgonul.github.io/verisim/
+**Forked from [VeriSim by @senolgulgonul](https://github.com/senolgulgonul/verisim).** The original simulator, waveform viewer, synthesis pipeline, and license are retained.
+
+**Upstream live demo:** https://senolgulgonul.github.io/verisim/
 
 ---
+
+## Product design
+
+VeriLab now uses a compact warm-neutral shell around a continuous dark engineering workspace. The original stepped-V circuit mark and `verilab.` wordmark establish the brand; locally bundled Space Grotesk, Inter, and JetBrains Mono provide the heading, UI, and code type systems. Indigo marks actions/selection, lime marks signals, and amber marks the time cursor.
+
+The editors, draggable results divider, and Console / Waveform / Synthesize area form one workspace. CodeMirror remains the editor. The new controls include a first-run **Load AND gate** action, **⌘ / Ctrl + Enter** to simulate, actual cursor positions, a **Testbench signals** selection shortcut, keyboard-accessible result resizing, and in-app **Quick guide** and **About** dialogs. Status feedback follows actual preprocessing, compilation, and simulation; errors retain real diagnostics. Synthesis diagnostics strip terminal color escapes for readability.
+
+Original simulation, preprocessing, compilation, VCD parsing, and Yosys scripts remain in place. Waveform geometry and navigation are retained; SVG colors now use the design tokens. The original binaries and schematic bundles are untouched.
+
+See [the validation record](tests/VALIDATION.md) for checks actually executed and [third-party notices](assets/THIRD_PARTY.md) for asset sources and licenses. No GitHub publication is included in this work.
+
+## VeriLab quick start
+
+```bash
+python3 -m http.server 8090
+```
+
+Open http://localhost:8090/, click **Load AND gate**, or choose **Examples → AND gate — start here**, then click **Run Simulation**. Design is on the left; Testbench is on the right. Each pane has its own Open, Save, Clear, and Rename controls. Supporting files for `include` and `$readmemb` remain available using **+** beside the testbench file. **Export ZIP** contains all files, local run scripts, and the last successful VCD.
+
+The Console should show these settled values:
+
+| Time | a | b | y = a & b |
+|---|---|---|---|
+| 0 ns | 0 | 0 | 0 |
+| 10 ns | 0 | 1 | 0 |
+| 20 ns | 1 | 0 | 0 |
+| 30 ns | 1 | 1 | 1 |
+
+The simulation finishes at **40 ns**. Open **Waveform** and tick **a**, **b**, and **y** in that order, or use **Testbench signals** to select the top-level signals together. Internal DUT signals remain available. The output stays low until 30 ns, then high until 40 ns. Click between 30 and 40 ns to read `a =1`, `b =1`, `y =1` at the cursor. Scroll to zoom, drag to pan, and click **Fit view** to restore the full range. The horizontal and vertical dividers remain draggable. **Download VCD** exports the real runtime-generated `dump.vcd` (1 ps timescale, with transitions at raw ticks 10000, 20000, and 30000).
+
+Open **Synthesize**, then click its **Synthesize** button: Gates should report **1×AND** and display the two-input gate. Switch to RTL and back to exercise both netlist views. Synthesis processes the design and supporting includes, not the testbench.
+
+For a quick proof that output depends on your code, change `a & b` to `a | b` and rerun: y becomes 1 at both 10 ns and 20 ns. Restore `&` afterward. An invalid assignment such as `assign y = ;` must produce a real compiler diagnostic and clear the previous waveform/download.
+
+### Architecture and hosting
+
+There is no build step, framework, backend, or package dependency for serving the site.
+
+| File / component | Responsibility and connections |
+|---|---|
+| `index.html` | Page structure and ES-module application code. Two CodeMirror editors synchronize into the existing `files` model; indices 0 and 1 retain the testbench and design roles. Supporting files use the right pane without replacing the testbench in the model. |
+| `styles.css` | VeriLab color/spacing/type tokens, dark CodeMirror theme, responsive workspace, result viewers, and dialog styling. Keep this file next to `index.html`. |
+| `ivlpp.js` + `ivlpp.wasm` | Preprocess design and testbench together, with supporting files in MEMFS for includes and shared macros. |
+| `ivl.js` + `ivl.wasm` | Compile preprocessed source using the selected language generation and emit `out.vvp`. |
+| `vvp.js` + `vvp.wasm` | Execute compiled bytes with supporting memory files in MEMFS; return console output and `/dump.vcd`. |
+| Waveform code in `index.html` | `parseVCD` decodes signals/timescale/transitions; `buildSigList` and `renderWave` drive the original interactive SVG viewer, cursor, zoom, pan, and selection order. |
+| Synthesis code in `index.html` | Lazy-import YoWASP/Yosys from jsDelivr; run Gates or RTL scripts; pass JSON netlists to the local renderer. |
+| `elk.bundled.js`, `netlistsvg.bundle.js` | Local schematic layout and SVG rendering, with the original schematic pan/zoom controls. |
+| Dated HTML files and `READMEold.md` | Historical upstream snapshots; not loaded by the current entry point. |
+| `LICENSE` | Existing GPL license, unchanged. |
+
+All local assets use relative paths, so the same checkout works under a GitHub Pages repository subpath. Publish the repository root using the normal GitHub Pages configuration; no generated build directory is required. The Icarus binaries and schematic bundles are unchanged. CodeMirror and fonts are bundled locally in `vendor/` and `assets/`; keep both directories alongside the entry point. YoWASP still loads from its existing CDN on first synthesis. If CodeMirror is unavailable, both editors fall back to plain textareas. Synthesis requires network access for YoWASP; remote source URLs also require network access.
+
+### Regression checks
+
+With Node.js 22 or newer:
+
+```bash
+node tests/engine-smoke.mjs
+```
+
+This dependency-free check extracts the actual orchestration functions, examples, and VCD parser from `index.html`, then runs the shipped WASM modules. It checks the AND truth table in all three language modes, all existing examples, the full-adder include-file truth table, shared preprocessor macros, memory-file reads, a simulation without a VCD, and an expected compiler failure. It does not substitute mock results.
+
+Browser verification before and after the interface changes covered real Icarus simulation and Yosys synthesis. Also check editor edits, supporting-file switching, renaming, share links, VCD/ZIP downloads, waveform interactions, Gates → RTL → Gates, and a narrow viewport when changing the UI. The Node check does not test browser layout or the CDN-loaded synthesis UI.
 
 ## Ported toolchain
 
@@ -105,7 +171,7 @@ python3 -c "import base64; enc=lambda f: base64.urlsafe_b64encode(open(f,'rb').r
 
 ### In the app
 
-Open the **URL...** dialog. It offers two buttons:
+Open the **Load / share** dialog. It offers two buttons:
 
 - **Copy share link** builds the `?design=&testbench=` form from the two URL fields.
 - **Copy code link** builds the self-contained `#d=&t=` form from whatever is currently in the editors.
@@ -118,6 +184,9 @@ It is a static site — any HTTP server works (the `file://` protocol does **not
 
 ```
 index.html
+styles.css
+assets/                # SVG identity, local fonts, font licenses
+vendor/codemirror/     # unchanged CodeMirror 5.65.16 + license
 ivlpp.js  ivlpp.wasm
 ivl.js    ivl.wasm
 vvp.js    vvp.wasm
@@ -132,7 +201,7 @@ curl -L -o elk.bundled.js       https://nturley.github.io/netlistsvg/elk.bundled
 curl -L -o netlistsvg.bundle.js https://nturley.github.io/netlistsvg/built/netlistsvg.bundle.js
 ```
 
-The simulator runs fully offline. The **Synthesize** tab additionally needs those two local bundles for rendering, and fetches the Yosys WebAssembly (~8 MB) from a CDN the first time you synthesize (cached by the browser thereafter).
+The simulation engine, editor, and font assets are local. Plain textarea editing remains available if CodeMirror cannot load. The **Synthesize** tab additionally needs those two local bundles for rendering, and fetches the Yosys WebAssembly (~8 MB) from a CDN the first time you synthesize (cached by the browser thereafter).
 
 ```bash
 python3 -m http.server 8090
